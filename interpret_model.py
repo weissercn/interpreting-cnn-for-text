@@ -434,6 +434,96 @@ def model_interpretation_1(model, data, interpretation_info, config):
                 print(str(i) + ": |", " | ".join([w + " | " + str(val) for w, val in zip(bottom_names[i], names_min[i])]),
                       file=f_out)
 
+def Weisser_model_interpretation_1(model, data, interpretation_info, config):
+    filters = model.get_filters()
+    W, b = model.get_fc_weights()
+    embeddings = model.get_embeddings()
+
+    for (filters_layer, layer_biases), (layer_index, layer_name) in zip(filters, enumerate(config["ngram_sizes"])):
+        for jx, f in enumerate(filters_layer):
+            fname = "w" + str(layer_name) + ".f" + str(jx)
+            f_out = open(config["model_path"] + "/model_interpretation/" + fname + "/filter_info.md", "w", encoding="UTF-8")
+
+            window = [f[i:i + config["embedding_dim"]] for i in range(0, filters_layer.size()[1], config["embedding_dim"])]
+            bias = layer_biases[jx]
+
+            amount = config["top_k_in_logs"]
+            top_names = [[] for _ in range(amount)]
+            names_max = [[] for _ in range(amount)]
+            bottom_names = [[] for _ in range(amount)]
+            names_min = [[] for _ in range(amount)]
+
+            for word_ix, word_filter in enumerate(window):
+                dist = embeddings.matmul(word_filter).cpu().detach().numpy()
+
+                arg_sort = np.argsort(dist)
+
+                max_val, arg_max = [], []
+                for a_val in arg_sort[::-1]:
+                    m_val = dist[a_val]
+                    if data["idx_to_word"][int(a_val)] in data["vocab"]:
+                        max_val.append(m_val)
+                        arg_max.append(a_val)
+                        if len(max_val) == amount:
+                            break
+
+                min_val, arg_min = [], []
+                for a_val in arg_sort:
+                    m_val = dist[a_val]
+                    if data["idx_to_word"][int(a_val)] in data["vocab"]:
+                        min_val.append(m_val)
+                        arg_min.append(a_val)
+                        if len(min_val) == amount:
+                            break
+
+                for i in range(amount):
+                    if len(arg_max) < i + 1:
+                        top_names[i].append("N/A")
+                        names_max[i].append(-1)
+                    else:
+                        top_names[i].append(data["idx_to_word"][int(arg_max[i])])
+                        names_max[i].append(float(max_val[i]))
+
+                for i in range(amount):
+                    if len(arg_min) < i + 1:
+                        bottom_names[i].append("N/A")
+                        names_min[i].append(-1)
+                    else:
+                        bottom_names[i].append(data["idx_to_word"][int(arg_min[i])])
+                        names_min[i].append(float(min_val[i]))
+
+            print("# " + fname, file=f_out)
+
+            print("#### Weights", file=f_out)
+            print("Name | Value | Description", file=f_out)
+            print(":--: | :--: | :--:", file=f_out)
+            print(f"CNN bias | {bias.item()} | The bias value for this filter in the conv layer", file=f_out)
+            jxx = config["num_filters"] * layer_index + jx
+            for cl in config["class_to_str"]:
+                print(f"{config['class_to_str'][cl]} (index: {int(cl)}) | {W[int(cl)][jxx].item()}"
+                      f"| The weight of the class for this filter in the FC layer", file=f_out)
+                print(f"{config['class_to_str'][cl]} bias | {b[int(cl)].item()}"
+                      f"| The bias weight of the class for this filter in the FC layer", file=f_out)
+
+            print("### Biggest words by slot", file=f_out)
+            num_slots = int(layer_name)
+            header = "Slot: |" + ' | '.join(["#" + str(slot) + " | val" for slot in range(num_slots)])
+            print(header, file=f_out)
+            print(":--: | " + ' | '.join([":--:" for _ in range(num_slots * 2)]), file=f_out)
+
+            for i in range(amount):
+                print(str(i) + ": |", " | ".join([w + " | " + str(val) for w, val in zip(top_names[i], names_max[i])]),
+                      file=f_out)
+
+            print("### Smallest words by slot", file=f_out)
+            num_slots = int(layer_name)
+            header = "Slot: |" + ' | '.join(["#" + str(slot) + " | val" for slot in range(num_slots)])
+            print(header, file=f_out)
+            print(":--: | " + ' | '.join([":--:" for _ in range(num_slots * 2)]), file=f_out)
+            for i in range(amount):
+                print(str(i) + ": |", " | ".join([w + " | " + str(val) for w, val in zip(bottom_names[i], names_min[i])]),
+                      file=f_out)
+
 
 def model_interpretation_2(model, interpretation_info, config):
     slot_activations = interpretation_info["slot_activations"]
@@ -702,7 +792,7 @@ def model_interpretation_3_clustering(model, interpretation_info, thresholds, co
     f_out.close()
 
 
-if __name__ == '__main__':
+if __name__ == '__main__orig': #original
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-c", "--config", type=str, required=True)
@@ -761,3 +851,68 @@ if __name__ == '__main__':
     print("Saving prediction interpretation to markdown...")
     with open(config["model_path"] + "/prediction_interpretation.md", "w") as fp:
         fp.write(prettify_prediction_interpretation(interpretation_info, prediction_interpretation, config))
+
+
+Weisser_model_interpretation_1
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-c", "--config", type=str, required=True)
+
+    args = parser.parse_args()
+
+    with open(args.config) as fp:
+        interpretation_config = json.load(fp)
+
+    model_path = interpretation_config["model_path"]
+    with open(model_path+'/config.json') as fp:
+        config = json.load(fp)
+
+    config.update(interpretation_config)
+
+    with open(model_path+'/w2i.json') as fp:
+        w2i = json.load(fp)
+
+    data = load_data(config=config, word_to_idx=w2i)
+
+    model = torch.load(model_path+'/model')
+
+    if config["cuda"]:
+        model = model.cuda()
+
+    for ngram_size in config["ngram_sizes"]:
+        for filter_ix in range(config["num_filters"]):
+            fname = "w" + str(ngram_size) + ".f" + str(filter_ix)
+            if not os.path.exists(interpretation_config["model_path"] + "/model_interpretation/" + fname):
+                os.makedirs(interpretation_config["model_path"] + "/model_interpretation/" + fname)
+
+    print("Getting training set activation data for interpretation...")
+    interpretation_info = get_activations(data, model, config, sample_size=config["sample_size"])
+
+    print("Token-level interpretation (biggest/smallest words per slot)...")
+    Weisser_model_interpretation_1(model, data, interpretation_info, config)
+
+    """
+    print("Ngram-level interpretation and threshold calculation...")
+    threshold_info = model_interpretation_2(model, interpretation_info, config)
+    interpretation_info["threshold_info"] = threshold_info
+
+    print("Evaluating thresholds...")
+    loss, acc = eval_epoch_with_thresholds(model, data, config, threshold_info)
+    print(f"Model with thresholds performance:\tLoss: {loss}\tAccuracy: {acc}")
+
+    if "cluster" in config and config["cluster"]:
+        print("Slot activation vector clustering...")
+        model_interpretation_3_clustering(model, interpretation_info, threshold_info, config)
+
+    print("Prediction interpretation...")
+    prediction_interpretation = interpret_predictions(data, model, config)
+
+    with open(config["model_path"] + "/prediction_interpretation.json", "w") as fp:
+        json.dump(prediction_interpretation, fp=fp)
+
+    print("Saving prediction interpretation to markdown...")
+    with open(config["model_path"] + "/prediction_interpretation.md", "w") as fp:
+        fp.write(prettify_prediction_interpretation(interpretation_info, prediction_interpretation, config))
+    """
