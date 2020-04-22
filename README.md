@@ -17,6 +17,7 @@ This code requires PyTorch and Scikit-learn. A Markdown viewer is also recommend
 1. Clone the repository
 2. Run `train_model.py -c config.json`
 3. Run `interpret_model.py -c interpretation_config.json`
+4. Run  MIT_adversarial.py -c adversarial_config.json
 
 This repository already contains the output of the demo run under `out/test`. Feel free to view the output markdown (`.md`) logs to get a feel for it.
 
