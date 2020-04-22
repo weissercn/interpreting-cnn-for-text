@@ -15,9 +15,9 @@ This repo attempts to derive interpretations (explanations) for 1D CNN networks 
 This code requires PyTorch and Scikit-learn. A Markdown viewer is also recommended.
 
 1. Clone the repository
-2. Run `train_model.py -c config.json`
-3. Run `interpret_model.py -c interpretation_config.json`
-4. Run  MIT_adversarial.py -c adversarial_config.json
+2. Run `python3 train_model.py -c config.json`
+3. Run `python3 interpret_model.py -c interpretation_config.json`
+4. Run `python3  MIT_adversarial.py -c adversarial_config.json`
 
 This repository already contains the output of the demo run under `out/test`. Feel free to view the output markdown (`.md`) logs to get a feel for it.
 
