@@ -4,7 +4,7 @@
   "pred_x_path": "mr_dataset/test.txt.tok",
   "pred_y_path": "mr_dataset/test.cat",
   "minimum_purity": 0.6,
-  "top_k_in_logs": 100,
+  "top_k_in_logs": 10,
   "sample_size": 2000,
   "cluster": true
 }

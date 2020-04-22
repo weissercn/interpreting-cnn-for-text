@@ -434,7 +434,7 @@ def model_interpretation_1(model, data, interpretation_info, config):
                 print(str(i) + ": |", " | ".join([w + " | " + str(val) for w, val in zip(bottom_names[i], names_min[i])]),
                       file=f_out)
 
-def Weisser_model_interpretation_1(model, data, interpretation_info, config):
+def MIT_model_interpretation_1(model, data, interpretation_info, config):
     filters = model.get_filters()
     W, b = model.get_fc_weights()
     embeddings = model.get_embeddings()
@@ -442,10 +442,10 @@ def Weisser_model_interpretation_1(model, data, interpretation_info, config):
     for (filters_layer, layer_biases), (layer_index, layer_name) in zip(filters, enumerate(config["ngram_sizes"])):
         for jx, f in enumerate(filters_layer):
             fname = "w" + str(layer_name) + ".f" + str(jx)
-            f_out = open(config["model_path"] + "/model_interpretation/" + fname + "/filter_info.md", "w", encoding="UTF-8")
-
+            f_out = open(config["model_path"] + "/model_interpretation/" + fname + "/filter_info_MIT.md", "w", encoding="UTF-8")
             window = [f[i:i + config["embedding_dim"]] for i in range(0, filters_layer.size()[1], config["embedding_dim"])]
             bias = layer_biases[jx]
+            print("f_out : ",f_out, len(window))
 
             amount = config["top_k_in_logs"]
             top_names = [[] for _ in range(amount)]
@@ -493,17 +493,6 @@ def Weisser_model_interpretation_1(model, data, interpretation_info, config):
                         names_min[i].append(float(min_val[i]))
 
             print("# " + fname, file=f_out)
-
-            print("#### Weights", file=f_out)
-            print("Name | Value | Description", file=f_out)
-            print(":--: | :--: | :--:", file=f_out)
-            print(f"CNN bias | {bias.item()} | The bias value for this filter in the conv layer", file=f_out)
-            jxx = config["num_filters"] * layer_index + jx
-            for cl in config["class_to_str"]:
-                print(f"{config['class_to_str'][cl]} (index: {int(cl)}) | {W[int(cl)][jxx].item()}"
-                      f"| The weight of the class for this filter in the FC layer", file=f_out)
-                print(f"{config['class_to_str'][cl]} bias | {b[int(cl)].item()}"
-                      f"| The bias weight of the class for this filter in the FC layer", file=f_out)
 
             print("### Biggest words by slot", file=f_out)
             num_slots = int(layer_name)
@@ -792,7 +781,7 @@ def model_interpretation_3_clustering(model, interpretation_info, thresholds, co
     f_out.close()
 
 
-if __name__ == '__main__orig': #original
+if __name__ == '__main__': #original
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-c", "--config", type=str, required=True)
@@ -853,9 +842,9 @@ if __name__ == '__main__orig': #original
         fp.write(prettify_prediction_interpretation(interpretation_info, prediction_interpretation, config))
 
 
-Weisser_model_interpretation_1
+#Weisser_model_interpretation_1
 
-if __name__ == '__main__':
+if __name__ == '__main__new':
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-c", "--config", type=str, required=True)
@@ -891,7 +880,7 @@ if __name__ == '__main__':
     interpretation_info = get_activations(data, model, config, sample_size=config["sample_size"])
 
     print("Token-level interpretation (biggest/smallest words per slot)...")
-    Weisser_model_interpretation_1(model, data, interpretation_info, config)
+    MIT_model_interpretation_1(model, data, interpretation_info, config)
 
     """
     print("Ngram-level interpretation and threshold calculation...")
