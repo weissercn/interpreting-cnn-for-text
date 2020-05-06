@@ -28,6 +28,8 @@ def run_adversary_attack(model, data, config, advers_attack):
 
     #print(len(epoch_x) , " examples")
 
+    results_extended = []
+
     for batch_x, batch_y, length_x in zip(epoch_x, epoch_y, lengths_x):
         #batch_x_advers = [a+advers_attack for a in batch_x ]
         #length_x_advers = [a+len(advers_attack) for a in  length_x]
@@ -80,6 +82,8 @@ def run_adversary_attack(model, data, config, advers_attack):
             if pred_class[0] == pred_class_advers[0]: results[TYPE][1]+=1
             else: results[TYPE][0]+=1
 
+            results_extended.append([batch_y[0], pred_class[0],pred_class_advers[0], length_x_orig[0]  ])
+
             if False:
                 #print(data["idx_to_word"].keys(), len(data["idx_to_word"].keys()))
                 print("Original sentence : ", " ".join([data["idx_to_word"][a] for a in batch_x_orig[0]  ]))
@@ -87,8 +91,7 @@ def run_adversary_attack(model, data, config, advers_attack):
                 print("Truth {}, Pred {}, Adversarial {}".format(batch_y[0],pred_class[0],pred_class_advers[0] ))
 
 
-    return results
-    print("results : ", results)        
+    return results, results_extended
     
 
 def plot_adversarial_conversions(labels, means1, means2, fname, TPBool):
@@ -131,7 +134,21 @@ def plot_adversarial_conversions(labels, means1, means2, fname, TPBool):
 
     plt.savefig(fname)
 
+def plot_pred_advers_len(pred_advers_len, fname, title):
+    data_1 = [length for ptype, length in pred_advers_len if ptype==0]
+    data_2 = [length for ptype, length in pred_advers_len if ptype==1]
 
+    print("data_1 ", data_1)
+
+    bins = np.linspace(0, 50, 11)
+
+    plt.title(title)
+    plt.hist(data_1, bins, alpha=0.5, label="unchanged by attack")
+    plt.hist(data_2, bins, alpha=0.5, label="flipped by attack")
+    plt.legend()
+    plt.xlabel("Words in Sentence")
+    plt.ylabel("Number of Examples")
+    plt.savefig(fname)
 
 def eval_adversary(model, data, config):
 
@@ -163,19 +180,75 @@ def eval_adversary(model, data, config):
         "w2.f19": [["and manages"], ["below manages"]], #natural attack does better
     }
 
+    """
+    filter_maximising_ngrams = {
+        "w2.f2": [["otherwise talented"], ["unique poorly"]],
+    }
+    """
+
     pos_filters_known =  ['w2.f0', 'w2.f1', 'w2.f4', 'w2.f5', 'w2.f6', 'w2.f8', 'w2.f10', 'w2.f15', 'w2.f18', 'w2.f19']
     neg_filters_known =  ['w2.f2', 'w2.f3', 'w2.f7', 'w2.f9', 'w2.f11', 'w2.f12', 'w2.f13', 'w2.f14', 'w2.f16', 'w2.f17']
 
 
-    pos_filters = []
-    neg_filters = []
-    all_filters = []
+    if False:
+        pos_filters = []
+        neg_filters = []
+        all_filters = []
 
-    pos_results = []
-    neg_results = []
-    all_results = []
+        pos_results = []
+        neg_results = []
+        all_results = []
 
-    for k in filter_maximising_ngrams:
+        for k in filter_maximising_ngrams:
+            advers_attack = {
+            "TP": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][0][0].split(" ")],
+            "TN": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][0][0].split(" ")],
+            "FP": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][0][0].split(" ")],
+            "FN": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][0][0].split(" ")],
+            }
+            #Natural
+            results_natural, results_natural_extended = run_adversary_attack(model=model, data=data, config=config, advers_attack=advers_attack)
+            hint_pos_natural = results_natural["TN"][0]*1./(results_natural["TN"][0]+ results_natural["TN"][1])
+            hint_neg_natural = results_natural["TP"][0]*1./(results_natural["TP"][0]+ results_natural["TP"][1])
+            print("{} {:.1e} {:.1e}".format(k, hint_pos_natural, hint_neg_natural))
+
+            advers_attack = {
+            "TP": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][1][0].split(" ")],
+            "TN": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][1][0].split(" ")],
+            "FP": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][1][0].split(" ")],
+            "FN": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][1][0].split(" ")],
+            }
+
+            results_synthetic, results_synthetic_extended = run_adversary_attack(model=model, data=data, config=config, advers_attack=advers_attack)
+            hint_pos_synthetic = results_synthetic["TN"][0]*1./(results_synthetic["TN"][0]+ results_synthetic["TN"][1])
+            hint_neg_synthetic = results_synthetic["TP"][0]*1./(results_synthetic["TP"][0]+ results_synthetic["TP"][1])
+            print("{} {:.1e} {:.1e}".format(k, hint_pos_synthetic, hint_neg_synthetic)) 
+
+            if hint_pos_synthetic > hint_neg_synthetic: 
+                pos_filters.append(k)
+                pos_results.append([hint_pos_natural, hint_pos_synthetic])
+            else: 
+                neg_filters.append(k)
+                neg_results.append([hint_neg_natural, hint_neg_synthetic])
+
+
+            print("results_natural_extended ", results_natural_extended) 
+
+            all_filters.append(k)
+            all_results.append([hint_pos_natural, hint_pos_synthetic, hint_neg_natural, hint_neg_synthetic])
+
+        print("pos_filters ", pos_filters)
+        print("neg_filters ", neg_filters)
+
+        plot_adversarial_conversions(pos_filters, [pos_result[0] for pos_result  in pos_results], [pos_result[1] for pos_result  in pos_results], "pos_adversarial_conversions.png", TPBool=True)
+        plot_adversarial_conversions(neg_filters, [neg_result[0] for neg_result  in neg_results], [neg_result[1] for neg_result  in neg_results], "neg_adversarial_conversions.png", TPBool=False)
+
+        plot_adversarial_conversions(all_filters, [all_result[0] for all_result  in all_results], [all_result[1] for all_result  in all_results], "all_pos_adversarial_conversions.png", TPBool=True)
+        plot_adversarial_conversions(all_filters, [all_result[2] for all_result  in all_results], [all_result[3] for all_result  in all_results], "all_neg_adversarial_conversions.png", TPBool=False)
+
+    if True:
+        ## CHECK DEPENDENCE ON PHRASE LENGTH
+        k = "w2.f6"        
         advers_attack = {
         "TP": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][0][0].split(" ")],
         "TN": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][0][0].split(" ")],
@@ -183,11 +256,14 @@ def eval_adversary(model, data, config):
         "FN": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][0][0].split(" ")],
         }
         #Natural
-        results_natural = run_adversary_attack(model=model, data=data, config=config, advers_attack=advers_attack)
-        hint_pos_natural = results_natural["TN"][0]*1./(results_natural["TN"][0]+ results_natural["TN"][1])
-        hint_neg_natural = results_natural["TP"][0]*1./(results_natural["TP"][0]+ results_natural["TP"][1])
-        print("{} {:.1e} {:.1e}".format(k, hint_pos_natural, hint_neg_natural))
+        results_natural, results_natural_extended = run_adversary_attack(model=model, data=data, config=config, advers_attack=advers_attack)
+        pred_advers_len = [ (pred_class_advers, length_x_orig)  for batch_y, pred_class, pred_class_advers, length_x_orig in results_natural_extended if (batch_y==0) and (pred_class==0) ]
+    
+        plot_pred_advers_len(pred_advers_len, "pos_len_dependence_natural.png", "Natural Attack on TN")
 
+
+
+        """
         advers_attack = {
         "TP": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][1][0].split(" ")],
         "TN": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][1][0].split(" ")],
@@ -195,29 +271,10 @@ def eval_adversary(model, data, config):
         "FN": [data["word_to_idx"][a] for a in filter_maximising_ngrams[k][1][0].split(" ")],
         }
 
-        results_synthetic = run_adversary_attack(model=model, data=data, config=config, advers_attack=advers_attack)
-        hint_pos_synthetic = results_synthetic["TN"][0]*1./(results_synthetic["TN"][0]+ results_synthetic["TN"][1])
-        hint_neg_synthetic = results_synthetic["TP"][0]*1./(results_synthetic["TP"][0]+ results_synthetic["TP"][1])
-        print("{} {:.1e} {:.1e}".format(k, hint_pos_synthetic, hint_neg_synthetic)) 
+        results_synthetic, results_synthetic_extended = run_adversary_attack(model=model, data=data, config=config, advers_attack=advers_attack)
 
-        if hint_pos_synthetic > hint_neg_synthetic: 
-            pos_filters.append(k)
-            pos_results.append([hint_pos_natural, hint_pos_synthetic])
-        else: 
-            neg_filters.append(k)
-            neg_results.append([hint_neg_natural, hint_neg_synthetic])
-
-        all_filters.append(k)
-        all_results.append([hint_pos_natural, hint_pos_synthetic, hint_neg_natural, hint_neg_synthetic])
-
-    print("pos_filters ", pos_filters)
-    print("neg_filters ", neg_filters)
-
-    plot_adversarial_conversions(pos_filters, [pos_result[0] for pos_result  in pos_results], [pos_result[1] for pos_result  in pos_results], "pos_adversarial_conversions.png", TPBool=True)
-    plot_adversarial_conversions(neg_filters, [neg_result[0] for neg_result  in neg_results], [neg_result[1] for neg_result  in neg_results], "neg_adversarial_conversions.png", TPBool=False)
-
-    plot_adversarial_conversions(all_filters, [all_result[0] for all_result  in all_results], [all_result[1] for all_result  in all_results], "all_pos_adversarial_conversions.png", TPBool=True)
-    plot_adversarial_conversions(all_filters, [all_result[2] for all_result  in all_results], [all_result[3] for all_result  in all_results], "all_neg_adversarial_conversions.png", TPBool=False)
+        k = "w2.f16"
+        """
 
 
 if __name__ == '__main__': #original
@@ -241,10 +298,12 @@ if __name__ == '__main__': #original
 
     data = load_data(config=config, word_to_idx=w2i)
 
-    model = torch.load(model_path+'/model')
 
     if config["cuda"]:
+        model = torch.load(model_path+'/model')
         model = model.cuda()
+    else:
+        model = torch.load(model_path+'/model', map_location=torch.device('cpu'))
 
 
     eval_adversary(model=model, data=data, config=config)
