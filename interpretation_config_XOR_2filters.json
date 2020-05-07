@@ -1,0 +1,10 @@
+{
+  "cuda": true,
+  "model_path": "out/XOR_2filters",
+  "pred_x_path": "XOR_dataset/test.txt.tok",
+  "pred_y_path": "XOR_dataset/test.cat",
+  "minimum_purity": 0.6,
+  "top_k_in_logs": 10,
+  "sample_size": 500,
+  "cluster": true
+}
